@@ -1,10 +1,46 @@
 use super::models::ImageData;
-use crate::storage::s3_client::S3Uploader;
+use crate::{image_processing::DEFAULT_IMAGE_SIZES, storage::s3_client::S3Uploader};
 use actix_web::{web, HttpResponse, Responder, http::header::ContentType};
 use chrono::Utc;
 use serde_json::json;
 use sqlx::PgPool;
+use tokio::task;
 use uuid::Uuid;
+use image::codecs::jpeg::JpegEncoder;
+use tokio::spawn;
+
+async fn resize_and_upload_image(
+    image_data: Vec<u8>,
+    main_image_id: Uuid,
+    s3_uploader: web::Data<S3Uploader>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let img = image::load_from_memory(&image_data)?;
+    let mut handles = vec![];
+
+    for &(width, height) in DEFAULT_IMAGE_SIZES.iter() {
+        let resized_img = img.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
+        let mut buffer = vec![];
+        let mut cursor = std::io::Cursor::new(&mut buffer);
+        JpegEncoder::new_with_quality(&mut cursor, 80).encode_image(&resized_img)?;
+        
+        // Generate new UUID for each resized version
+        let resized_id = Uuid::new_v4();
+        let resized_file_name = format!("images/{}/{}.jpg", main_image_id, resized_id);
+        
+        let s3_uploader = s3_uploader.clone();
+        let buffer_clone = buffer.clone();
+
+        handles.push(task::spawn(async move {
+            s3_uploader.upload_image(buffer_clone, resized_file_name).await
+        }));
+    }
+
+    for handle in handles {
+        handle.await??;
+    }
+
+    Ok(())
+}
 
 async fn upload_image(
     db_pool: web::Data<PgPool>,
@@ -44,6 +80,20 @@ async fn upload_image(
                 url: url.clone(),
                 created_at: Some(created_at),
             };
+            
+            let s3_uploader_clone = s3_uploader.clone();
+            let image_data_clone = image_data.to_vec();
+            
+            spawn(async move {
+                if let Err(e) = resize_and_upload_image(
+                    image_data_clone,
+                    image_id,
+                    web::Data::new((*s3_uploader_clone).as_ref().clone()),
+                ).await {
+                    eprintln!("Failed to resize image: {:?}", e);
+                }
+            });
+
             match image.insert(&db_pool).await {
                 Ok(_) => HttpResponse::Ok()
                     .insert_header(ContentType::json())

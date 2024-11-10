@@ -3680,6 +3680,7 @@ dependencies = [
  "env_logger",
  "image",
  "infer",
+ "lazy_static",
  "log",
  "serde",
  "serde_json",
