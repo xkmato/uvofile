@@ -16,8 +16,7 @@ impl<'r> FromRow<'r, PgRow> for ImageData {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         let url: String = row.try_get("url")?;
         let created_at: DateTime<Utc> = row.try_get("created_at")?;
-        let id_str: String = row.try_get("id")?;
-        let id = Uuid::parse_str(&id_str).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        let id: Uuid = row.try_get("id")?;
         Ok(ImageData {
             id,
             url,
@@ -30,7 +29,7 @@ impl ImageData {
     pub async fn get(pool: &sqlx::PgPool, id: Uuid) -> Result<Self, sqlx::Error> {
         let image_data =
             sqlx::query_as::<_, ImageData>("SELECT id, url, created_at FROM images WHERE id = $1")
-                .bind(id.to_string())
+                .bind(id)
                 .fetch_one(pool)
                 .await?;
         Ok(image_data)
@@ -38,7 +37,7 @@ impl ImageData {
 
     pub async fn insert(&self, pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO images (id, url, created_at) VALUES ($1, $2, $3)")
-            .bind(self.id.to_string())
+            .bind(self.id)
             .bind(self.url.clone())
             .bind(self.created_at)
             .execute(pool)
@@ -49,7 +48,7 @@ impl ImageData {
     pub async fn update(pool: &sqlx::PgPool, id: Uuid, url: String) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE images SET url = $1 WHERE id = $2")
             .bind(url)
-            .bind(id.to_string())
+            .bind(id)
             .execute(pool)
             .await?;
         Ok(())
@@ -57,7 +56,7 @@ impl ImageData {
 
     pub async fn delete(pool: &sqlx::PgPool, id: Uuid) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM images WHERE id = $1")
-            .bind(id.to_string())
+            .bind(id)
             .execute(pool)
             .await?;
         Ok(())

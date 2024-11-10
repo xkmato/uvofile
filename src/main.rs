@@ -13,7 +13,9 @@ mod image_processing;
 mod storage;
 
 async fn not_found() -> actix_web::HttpResponse {
-    HttpResponse::NotFound().body("Nothing to see here")
+    HttpResponse::NotFound()
+        .content_type("application/json")
+        .body(r#"{"error": "Nothing to see here"}"#)
 }
 
 #[actix_web::main]
