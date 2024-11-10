@@ -5,3 +5,9 @@
 - Image downloading
 - Image resizing: Default sizes and resize on demand
 - Bearer Auth on image request
+
+
+## Instructions
+
+- Set up the env variables but copying the .env.example file
+- run `docker-compose up --build`
