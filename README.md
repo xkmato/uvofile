@@ -11,3 +11,14 @@
 
 - Set up the env variables but copying the .env.example file
 - run `docker-compose up --build`
+
+## Usage
+Post an image to the /upload folder
+
+```
+curl -X POST \
+  -H "Content-Type: multipart/form-data" \
+  -F "image=@/path/to/your/image.jpg" \
+  http://your-server/upload
+  
+```
