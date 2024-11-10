@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use chrono::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::postgres::PgRow;
 use sqlx::{FromRow, Row};
 use uuid::Uuid;
@@ -10,6 +13,7 @@ pub struct ImageData {
     pub id: Uuid,
     pub url: String,
     pub created_at: Option<DateTime<Utc>>,
+    pub resized_urls: Option<serde_json::Value>,
 }
 
 impl<'r> FromRow<'r, PgRow> for ImageData {
@@ -17,10 +21,12 @@ impl<'r> FromRow<'r, PgRow> for ImageData {
         let url: String = row.try_get("url")?;
         let created_at: DateTime<Utc> = row.try_get("created_at")?;
         let id: Uuid = row.try_get("id")?;
+        let resized_urls: Option<serde_json::Value> = row.try_get("resized_urls")?;
         Ok(ImageData {
             id,
             url,
             created_at: Some(created_at),
+            resized_urls: resized_urls,
         })
     }
 }
@@ -59,6 +65,28 @@ impl ImageData {
             .bind(id)
             .execute(pool)
             .await?;
+        Ok(())
+    }
+
+    pub async fn update_resized_urls(
+        pool: &sqlx::PgPool,
+        main_image_id: Uuid,
+        size_urls: Vec<((u32, u32), String)>,
+    ) -> Result<(), sqlx::Error> {
+        let urls_map: HashMap<String, String> = size_urls
+                .into_iter()
+                .map(|((width, height), url)| {
+                    (format!("{}x{}", width, height), url)
+                })
+                    .collect::<HashMap<String, String>>();
+            
+        let urls_json = json!(urls_map);
+    
+        sqlx::query("UPDATE images SET resized_urls = $1 WHERE id = $2")
+            .bind(urls_json)
+            .bind(main_image_id)
+        .execute(pool)
+        .await?;
         Ok(())
     }
 }

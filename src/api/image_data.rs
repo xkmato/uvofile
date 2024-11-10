@@ -1,21 +1,7 @@
 use super::models::ImageData;
-use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
+use actix_web::{delete, get, put, web, HttpResponse, Responder};
 use sqlx::PgPool;
 use uuid::Uuid;
-
-#[post("/images")]
-async fn create_image(db_pool: web::Data<PgPool>, image_url: web::Json<String>) -> impl Responder {
-    let new_image: ImageData = ImageData {
-        id: Uuid::new_v4(),
-        url: image_url.into_inner(),
-        created_at: Some(chrono::Utc::now()),
-    };
-
-    match new_image.insert(db_pool.get_ref()).await {
-        Ok(_) => HttpResponse::Created().json(new_image),
-        Err(e) => HttpResponse::InternalServerError().body(format!("Error inserting image: {}", e)),
-    }
-}
 
 #[get("/images/{id}")]
 async fn get_image(db_pool: web::Data<PgPool>, id: web::Path<Uuid>) -> impl Responder {
@@ -62,7 +48,6 @@ async fn delete_image(db_pool: web::Data<PgPool>, id: web::Path<Uuid>) -> impl R
 }
 
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(create_image);
     cfg.service(get_image);
     cfg.service(update_image);
     cfg.service(delete_image);
